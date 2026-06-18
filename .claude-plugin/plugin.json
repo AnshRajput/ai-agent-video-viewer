@@ -5,7 +5,7 @@
   "author": {
     "name": "Ansh"
   },
-  "repository": "https://github.com/ansh/ai-agent-video-viewer",
+  "repository": "https://github.com/AnshRajput/ai-agent-video-viewer",
   "license": "MIT",
   "keywords": ["video", "audio", "transcription", "translation", "whisper", "ffmpeg", "yt-dlp", "agent-skill"]
 }

@@ -4,8 +4,8 @@ description: This skill should be used when the user asks to watch a video, summ
 version: 1.0.0
 author: Ansh
 license: MIT
-homepage: https://github.com/ansh/ai-agent-video-viewer
-repository: https://github.com/ansh/ai-agent-video-viewer
+homepage: https://github.com/AnshRajput/ai-agent-video-viewer
+repository: https://github.com/AnshRajput/ai-agent-video-viewer
 allowed-tools: Bash, Read
 user-invocable: true
 argument-hint: "<video-or-audio-url-or-path> [question]"

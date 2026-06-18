@@ -62,12 +62,12 @@ First transcription may download a whisper.cpp model from Hugging Face into `~/.
 
 ## Install from GitHub
 
-Canonical repository URL: `https://github.com/ansh/ai-agent-video-viewer`.
+Canonical repository URL: `https://github.com/AnshRajput/ai-agent-video-viewer`.
 
 ### Claude Code: standalone skill
 
 ```bash
-git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.claude/skills/ai-agent-video-viewer
+git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/.claude/skills/ai-agent-video-viewer
 python3 ~/.claude/skills/ai-agent-video-viewer/scripts/setup.py --json
 ```
 
@@ -98,14 +98,14 @@ skills/ai-agent-video-viewer/scripts/
 For local plugin development/testing, clone the repo and point Claude Code at the plugin directory if your Claude Code version supports `--plugin-dir`:
 
 ```bash
-git clone https://github.com/ansh/ai-agent-video-viewer.git ~/claude-plugins/ai-agent-video-viewer
+git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/claude-plugins/ai-agent-video-viewer
 claude --plugin-dir ~/claude-plugins/ai-agent-video-viewer
 ```
 
 ### Hermes Agent
 
 ```bash
-git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.hermes/skills/media/ai-agent-video-viewer
+git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/.hermes/skills/media/ai-agent-video-viewer
 python3 ~/.hermes/skills/media/ai-agent-video-viewer/scripts/setup.py --json
 ```
 
@@ -116,7 +116,7 @@ Then start a new Hermes session or run `/reload-skills` if available.
 Codex/generic agents do not need a special runtime if they can read files and run shell commands:
 
 ```bash
-git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.local/share/ai-skills/ai-agent-video-viewer
+git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/.local/share/ai-skills/ai-agent-video-viewer
 cd ~/.local/share/ai-skills/ai-agent-video-viewer
 python3 scripts/setup.py --json
 ```
@@ -131,7 +131,7 @@ Read SKILL.md in ~/.local/share/ai-skills/ai-agent-video-viewer and use it to an
 
 ```bash
 mkdir -p ~/.local/share/ai-skills/ai-agent-video-viewer
-curl -L https://github.com/ansh/ai-agent-video-viewer/archive/refs/heads/main.tar.gz \
+curl -L https://github.com/AnshRajput/ai-agent-video-viewer/archive/refs/heads/main.tar.gz \
   | tar -xz --strip-components=1 -C ~/.local/share/ai-skills/ai-agent-video-viewer
 ```
 
