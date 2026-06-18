@@ -118,18 +118,20 @@ Capability meanings:
 
 Missing transcription does not prevent visual-only video analysis. Missing `yt-dlp` does not prevent local file analysis.
 
-Install hints:
+Install/fix hints:
 
 ```bash
-# macOS
-brew install ffmpeg yt-dlp whisper-cpp
+# From the cloned repo: install media dependencies and Claude Code skill/plugin targets
+python3 "$SKILL_DIR/scripts/install.py" --force
 
-# Ubuntu/Debian base deps
-sudo apt-get update && sudo apt-get install -y ffmpeg yt-dlp
-# Then install whisper.cpp / whisper-cli from your package manager or source.
+# macOS when Homebrew is missing and you explicitly allow bootstrap
+python3 "$SKILL_DIR/scripts/install.py" --install-homebrew --force
+
+# If this skill was installed by copying only SKILL.md + scripts/, install just dependencies
+python3 "$SKILL_DIR/scripts/install.py" --skip-claude-skill --skip-claude-plugin
 ```
 
-On Windows, install ffmpeg, yt-dlp, and whisper.cpp, ensure binaries are on PATH, and use `python` if `python3` is unavailable.
+The installer uses Homebrew on macOS, apt + local whisper.cpp build on Debian/Ubuntu, and copies the skill into `~/.claude/skills/ai-agent-video-viewer` for Claude Code terminal/app sessions. On Windows, install ffmpeg, yt-dlp, and whisper.cpp, ensure binaries are on PATH, and use `python` if `python3` is unavailable.
 
 ### Step 1 — Parse the Request
 

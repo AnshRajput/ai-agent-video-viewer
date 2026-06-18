@@ -7,6 +7,7 @@ import json
 import platform
 import shutil
 import subprocess
+from pathlib import Path
 
 WHISPER_CANDIDATES = ["whisper-cli", "whisper-cpp"]
 
@@ -38,6 +39,8 @@ def find_whisper() -> str | None:
 
 
 def status() -> dict:
+    repo_root = Path(__file__).resolve().parents[1]
+    home = Path.home()
     ffmpeg = binary_ok("ffmpeg")
     ffprobe = binary_ok("ffprobe")
     ytdlp = binary_ok("yt-dlp")
@@ -58,10 +61,20 @@ def status() -> dict:
             "local_transcription": ffmpeg and ffprobe and bool(whisper),
             "full": ffmpeg and ffprobe and ytdlp and bool(whisper),
         },
+        "claude_code": {
+            "binary": shutil.which("claude"),
+            "standalone_skill": str(home / ".claude" / "skills" / "ai-agent-video-viewer"),
+            "standalone_skill_installed": (home / ".claude" / "skills" / "ai-agent-video-viewer" / "SKILL.md").exists(),
+            "plugin_dir": str(home / "claude-plugins" / "ai-agent-video-viewer"),
+            "plugin_dir_installed": (home / "claude-plugins" / "ai-agent-video-viewer" / ".claude-plugin" / "plugin.json").exists(),
+        },
         "install": {
-            "macos": "brew install ffmpeg yt-dlp whisper-cpp",
-            "debian_ubuntu": "sudo apt-get update && sudo apt-get install -y ffmpeg yt-dlp  # then install whisper.cpp/whisper-cli",
-            "windows": "Install ffmpeg, yt-dlp, and whisper.cpp; ensure ffmpeg, ffprobe, yt-dlp, and whisper-cli are on PATH.",
+            "one_command": "python3 scripts/install.py --force",
+            "macos_full_bootstrap": "python3 scripts/install.py --install-homebrew --force",
+            "remote_bootstrap": "curl -fsSL https://raw.githubusercontent.com/AnshRajput/ai-agent-video-viewer/main/install.sh | bash -s -- --force",
+            "macos_manual": "brew install ffmpeg yt-dlp whisper-cpp",
+            "debian_ubuntu_manual": "sudo apt-get update && sudo apt-get install -y ffmpeg yt-dlp git cmake build-essential  # install.py can build whisper.cpp",
+            "windows_manual": "Install ffmpeg, yt-dlp, and whisper.cpp; ensure ffmpeg, ffprobe, yt-dlp, and whisper-cli are on PATH.",
         },
     }
 
@@ -81,6 +94,9 @@ def main() -> int:
         print("ai-agent-video-viewer capability status")
         for key, value in data["capabilities"].items():
             print(f"- {key}: {'yes' if value else 'no'}")
+        print("\nClaude Code:")
+        for key, value in data["claude_code"].items():
+            print(f"- {key}: {value}")
         if not data["capabilities"]["full"]:
             print("\nInstall hints:")
             for os_name, hint in data["install"].items():

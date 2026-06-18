@@ -32,46 +32,65 @@ License: MIT
 
 | Tool | Needed for |
 | --- | --- |
-| Python 3.10+ | Running scripts |
+| Python 3.9+ | Running scripts and installer |
 | ffmpeg | Frame/audio extraction |
 | ffprobe | Media metadata |
 | yt-dlp | URL downloads |
 | whisper.cpp / whisper-cli | Local transcription and English translation |
+| Claude Code CLI | Terminal/app skill usage |
 
-macOS:
+First transcription may download a whisper.cpp model from Hugging Face into `~/.cache/whisper/`. After the model is cached, transcription runs locally.
+
+## One-command install
+
+Canonical repository URL: `https://github.com/AnshRajput/ai-agent-video-viewer`.
+
+The full installer installs the local media toolchain and makes the skill available to Claude Code both as a user skill and as a plugin-style directory:
+
+- `~/.claude/skills/ai-agent-video-viewer` for normal Claude Code terminal/app sessions after restart
+- `~/claude-plugins/ai-agent-video-viewer` for plugin-dir testing with `claude --plugin-dir ...`
+
+Recommended install after cloning:
+
+```bash
+git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/.local/share/ai-agent-video-viewer/source
+cd ~/.local/share/ai-agent-video-viewer/source
+python3 scripts/install.py --force
+```
+
+macOS with Homebrew already installed uses:
 
 ```bash
 brew install ffmpeg yt-dlp whisper-cpp
 ```
 
-Ubuntu/Debian base tools:
+If Homebrew is not installed, the installer stops instead of silently running a remote bootstrap script. To explicitly allow Homebrew bootstrap, run:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ffmpeg yt-dlp
-# Then install whisper.cpp / whisper-cli from your package manager or source.
+python3 scripts/install.py --install-homebrew --force
 ```
 
-Windows:
-
-- Install Python, ffmpeg, yt-dlp, and whisper.cpp.
-- Ensure `ffmpeg`, `ffprobe`, `yt-dlp`, and `whisper-cli` are on PATH.
-- Use `python` instead of `python3` if needed.
-
-First transcription may download a whisper.cpp model from Hugging Face into `~/.cache/whisper/`. After the model is cached, transcription runs locally.
-
-## Install from GitHub
-
-Canonical repository URL: `https://github.com/AnshRajput/ai-agent-video-viewer`.
-
-### Claude Code: standalone skill
+Remote bootstrap is also supported for users who prefer a single copy/paste command. For supply-chain safety, inspect `install.sh` first if possible.
 
 ```bash
-git clone https://github.com/AnshRajput/ai-agent-video-viewer.git ~/.claude/skills/ai-agent-video-viewer
-python3 ~/.claude/skills/ai-agent-video-viewer/scripts/setup.py --json
+curl -fsSL https://raw.githubusercontent.com/AnshRajput/ai-agent-video-viewer/main/install.sh | bash -s -- --force
 ```
 
-Start a new Claude Code session after installing, then ask naturally:
+Useful installer options:
+
+```bash
+python3 scripts/install.py --dry-run          # show package/file actions only
+python3 scripts/install.py --json             # machine-readable install plan
+python3 scripts/install.py --skip-deps        # install Claude skill/plugin only
+python3 scripts/install.py --remove-legacy    # remove old ~/.claude/skills/ansh-media-watch
+python3 scripts/install.py --no-check         # skip final setup.py --check
+```
+
+Ubuntu/Debian: `scripts/install.py` installs apt base tools and builds `whisper.cpp` locally under `~/.local/share/ai-agent-video-viewer/whisper.cpp` when `whisper-cli` is missing. Ensure `~/.local/bin` is on PATH.
+
+Windows: automatic setup is still limited. Install Python, ffmpeg, yt-dlp, and whisper.cpp, ensure `ffmpeg`, `ffprobe`, `yt-dlp`, and `whisper-cli` are on PATH, then run `python scripts/setup.py --check`.
+
+Start a new Claude Code terminal session and restart the Claude Code app/IDE integration after installing, then ask naturally:
 
 ```text
 Watch this video and summarize what happens: <url>
@@ -202,7 +221,8 @@ The coordinator or reviewer must read `result.json` and inspect the evidence fil
 ## Validation before publishing
 
 ```bash
-python3 -m py_compile scripts/setup.py scripts/media_watch.py
+python3 -m py_compile scripts/setup.py scripts/install.py scripts/media_watch.py
+python3 scripts/install.py --dry-run --skip-deps --force --no-check
 python3 scripts/setup.py --json
 python3 scripts/media_watch.py --help
 python3 -m unittest discover -s tests -v
@@ -227,11 +247,12 @@ python3 scripts/media_watch.py "$tmp/sample.mp4" --max-frames 2 --out-dir "$tmp/
 ## Repository layout
 
 ```text
-SKILL.md                         # standalone/generic skill entrypoint
-scripts/                         # source scripts
-.claude-plugin/plugin.json       # Claude Code plugin metadata
-skills/ai-agent-video-viewer/         # plugin-compatible mirrored skill directory
-tests/                           # unit tests
+install.sh                        # one-command bootstrap wrapper
+SKILL.md                          # standalone/generic skill entrypoint
+scripts/                          # source scripts: installer, setup checker, media processor
+.claude-plugin/plugin.json        # Claude Code plugin metadata
+skills/ai-agent-video-viewer/     # plugin-compatible mirrored skill directory
+tests/                            # unit tests
 ```
 
 The root `SKILL.md` + `scripts/` are the source of truth. The plugin-compatible `skills/ai-agent-video-viewer/` directory is mirrored from the root for Claude plugin-style installs.
