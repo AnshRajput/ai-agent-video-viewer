@@ -10,13 +10,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import ipaddress
 import math
+import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -27,6 +31,8 @@ MODEL_BASE_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 VALID_MODELS = {"tiny", "base", "small", "medium", "large-v3", "large-v3-turbo", "tiny.en", "base.en", "small.en", "medium.en"}
 MAX_FRAMES = 120
 MAX_RESOLUTION = 4096
+DEFAULT_MAX_MEDIA_MB = 2048
+DEFAULT_MAX_DURATION_SEC = 6 * 60 * 60
 
 
 def log(msg: str) -> None:
@@ -42,6 +48,81 @@ def run(cmd: list[str], *, check: bool = True, timeout: int | None = None) -> su
 
 def is_url(source: str) -> bool:
     return bool(re.match(r"https?://", source, re.IGNORECASE))
+
+
+def validate_public_url(source: str, *, allow_private: bool = False) -> None:
+    """Reject URL forms that are risky for unattended agent execution."""
+    parsed = urllib.parse.urlparse(source)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise SystemExit("Only http(s) URLs are supported")
+    if not parsed.hostname:
+        raise SystemExit("URL must include a hostname")
+    host = parsed.hostname.strip().lower().rstrip(".")
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(".localhost"):
+        if not allow_private:
+            raise SystemExit("Refusing localhost URL. Pass --allow-private-urls only for trusted local media.")
+        return
+    if allow_private:
+        return
+    try:
+        ip_obj = ipaddress.ip_address(host)
+        addrs = [ip_obj]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            raise SystemExit(f"Could not resolve URL hostname {host!r}: {exc}") from exc
+        addrs = []
+        for info in infos:
+            addr = info[4][0]
+            try:
+                addrs.append(ipaddress.ip_address(addr))
+            except ValueError:
+                continue
+    unsafe = [str(ip) for ip in addrs if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified]
+    if unsafe:
+        raise SystemExit(
+            "Refusing URL that resolves to private/local/reserved address(es): "
+            + ", ".join(sorted(set(unsafe)))
+            + ". Pass --allow-private-urls only for trusted local/internal media."
+        )
+
+
+def file_size_mb(path: Path) -> float:
+    return path.stat().st_size / (1024 * 1024)
+
+
+def enforce_file_size(path: Path, max_mb: float | None, label: str) -> None:
+    if max_mb is None or max_mb <= 0:
+        return
+    size = file_size_mb(path)
+    if size > max_mb:
+        raise SystemExit(f"{label} is {size:.1f} MB, above limit {max_mb:.1f} MB. Use a focused smaller file or pass 0 to disable the limit.")
+
+
+def ensure_inside(path: Path, parent: Path, label: str) -> Path:
+    resolved = path.resolve()
+    root = parent.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} resolved outside output directory: {resolved}") from exc
+    return resolved
+
+
+def prepare_output_dir(out_dir: str | None, *, force: bool) -> Path:
+    work = Path(out_dir).expanduser().resolve() if out_dir else Path(tempfile.mkdtemp(prefix="ansh-media-watch-"))
+    dangerous = {Path("/").resolve(), Path.home().resolve(), Path.cwd().resolve()}
+    if work in dangerous:
+        raise SystemExit(f"Refusing unsafe output directory: {work}. Choose a dedicated empty subdirectory.")
+    if work.exists() and any(work.iterdir()) and not force:
+        raise SystemExit(f"Output directory is not empty: {work}\nPass --force to write fixed output names there, or choose a new --out-dir.")
+    work.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(work, 0o700)
+    except OSError:
+        pass
+    return work
 
 
 def parse_time(value: str | None) -> float | None:
@@ -157,21 +238,26 @@ def ensure_model(model: str) -> Path:
     return path
 
 
-def download_or_copy(source: str, work: Path) -> tuple[Path, dict[str, Any]]:
+def download_or_copy(source: str, work: Path, *, max_media_mb: float, allow_private_urls: bool) -> tuple[Path, dict[str, Any]]:
     if is_url(source):
+        validate_public_url(source, allow_private=allow_private_urls)
         require_binary("yt-dlp")
         out_tpl = str(work / "source.%(ext)s")
         cmd = [
             "yt-dlp", "--no-playlist", "-f", "bv*+ba/best", "--merge-output-format", "mp4",
-            "-o", out_tpl, "--print", "after_move:filepath", source,
         ]
+        if max_media_mb and max_media_mb > 0:
+            cmd += ["--max-filesize", f"{max_media_mb:.0f}M"]
+        cmd += ["-o", out_tpl, "--print", "after_move:filepath", source]
         log("downloading media with yt-dlp")
         result = run(cmd, timeout=3600)
         lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
         media = Path(lines[-1]) if lines else next(work.glob("source.*"), None)
         if not media or not media.exists():
             raise SystemExit("yt-dlp completed but no media file was found")
-        return media.resolve(), {"source_kind": "url", "download_stdout": result.stdout.strip()}
+        media = ensure_inside(media, work, "Downloaded media")
+        enforce_file_size(media, max_media_mb, "Downloaded media")
+        return media, {"source_kind": "url", "download_stdout": result.stdout.strip()}
 
     src = Path(source).expanduser().resolve()
     if not src.exists():
@@ -180,9 +266,12 @@ def download_or_copy(source: str, work: Path) -> tuple[Path, dict[str, Any]]:
         raise SystemExit(f"Local media path is not a file: {src}")
     safe_suffix = src.suffix.lower() or ".media"
     dest = work / f"source{safe_suffix}"
+    enforce_file_size(src, max_media_mb, "Local media")
     if src != dest:
         shutil.copy2(src, dest)
-    return dest.resolve(), {"source_kind": "local"}
+    dest = ensure_inside(dest, work, "Copied media")
+    enforce_file_size(dest, max_media_mb, "Copied media")
+    return dest, {"source_kind": "local"}
 
 
 def probe(media: Path) -> dict[str, Any]:
@@ -199,6 +288,24 @@ def probe(media: Path) -> dict[str, Any]:
     has_video = any(s.get("codec_type") == "video" for s in streams)
     has_audio = any(s.get("codec_type") == "audio" for s in streams)
     return {"duration": duration, "has_video": has_video, "has_audio": has_audio, "streams": streams}
+
+
+def enforce_duration(info: dict[str, Any], max_duration_sec: float | None, start: float | None, end: float | None) -> None:
+    if max_duration_sec is None or max_duration_sec <= 0:
+        return
+    duration = info.get("duration")
+    if duration is None:
+        return
+    if duration <= max_duration_sec:
+        return
+    if start is not None or end is not None:
+        requested = compute_range_duration(duration, start, end)
+        if requested <= max_duration_sec:
+            return
+    raise SystemExit(
+        f"Media duration {fmt_time(duration)} exceeds limit {fmt_time(max_duration_sec)}. "
+        "Use --start/--end for a focused range or pass --max-duration-sec 0 to disable the limit for trusted media."
+    )
 
 
 def compute_range_duration(duration: float | None, start: float | None, end: float | None) -> float:
@@ -383,6 +490,7 @@ def write_outputs(work: Path, args: argparse.Namespace, media: Path, info: dict[
         "transcript_state": transcript_state,
         "transcript_segments": segments,
         "timestamps": {"frames": "approximate source time", "transcript": "source time"},
+        "limits": {"max_media_mb": args.max_media_mb, "max_duration_sec": args.max_duration_sec, "allow_private_urls": args.allow_private_urls},
     }
     (work / "result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(report_text)
@@ -401,7 +509,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--translate", action="store_true", help="translate transcript to English")
     ap.add_argument("--model", default="small", help="whisper.cpp model name")
     ap.add_argument("--out-dir", help="output directory; must be empty unless --force is passed")
-    ap.add_argument("--force", action="store_true", help="allow writing into a non-empty --out-dir")
+    ap.add_argument("--force", action="store_true", help="allow writing fixed output names into a non-empty --out-dir")
+    ap.add_argument("--max-media-mb", type=positive_float_range("--max-media-mb", 0, 1_000_000), default=DEFAULT_MAX_MEDIA_MB, help=f"maximum input/download size in MB; 0 disables (default {DEFAULT_MAX_MEDIA_MB})")
+    ap.add_argument("--max-duration-sec", type=positive_float_range("--max-duration-sec", 0, 30 * 24 * 60 * 60), default=DEFAULT_MAX_DURATION_SEC, help="maximum media or requested range duration in seconds; 0 disables (default 21600)")
+    ap.add_argument("--allow-private-urls", action="store_true", help="allow localhost/private-network URLs for trusted local/internal media")
     ap.add_argument("--keep", action="store_true", help="suppress cleanup reminder")
     return ap
 
@@ -413,13 +524,11 @@ def main() -> int:
     if args.end is not None and args.start is not None and args.end <= args.start:
         raise SystemExit("--end must be greater than --start")
 
-    work = Path(args.out_dir).expanduser().resolve() if args.out_dir else Path(tempfile.mkdtemp(prefix="ansh-media-watch-"))
-    if work.exists() and any(work.iterdir()) and not args.force:
-        raise SystemExit(f"Output directory is not empty: {work}\nPass --force to write fixed output names there, or choose a new --out-dir.")
-    work.mkdir(parents=True, exist_ok=True)
+    work = prepare_output_dir(args.out_dir, force=args.force)
 
-    media, _extra = download_or_copy(args.source, work)
+    media, _extra = download_or_copy(args.source, work, max_media_mb=args.max_media_mb, allow_private_urls=args.allow_private_urls)
     info = probe(media)
+    enforce_duration(info, args.max_duration_sec, args.start, args.end)
     frames: list[dict[str, Any]] = []
     frame_manifest = None
     contact_sheet = None

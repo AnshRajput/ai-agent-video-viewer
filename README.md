@@ -62,12 +62,12 @@ First transcription may download a whisper.cpp model from Hugging Face into `~/.
 
 ## Install from GitHub
 
-Replace `<owner>` with your GitHub username/org after publishing.
+Canonical repository URL: `https://github.com/ansh/ansh-media-watch-skill`.
 
 ### Claude Code: standalone skill
 
 ```bash
-git clone https://github.com/<owner>/ansh-media-watch-skill.git ~/.claude/skills/ansh-media-watch
+git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.claude/skills/ansh-media-watch
 python3 ~/.claude/skills/ansh-media-watch/scripts/setup.py --json
 ```
 
@@ -98,14 +98,14 @@ skills/ansh-media-watch/scripts/
 For local plugin development/testing, clone the repo and point Claude Code at the plugin directory if your Claude Code version supports `--plugin-dir`:
 
 ```bash
-git clone https://github.com/<owner>/ansh-media-watch-skill.git ~/claude-plugins/ansh-media-watch
+git clone https://github.com/ansh/ansh-media-watch-skill.git ~/claude-plugins/ansh-media-watch
 claude --plugin-dir ~/claude-plugins/ansh-media-watch
 ```
 
 ### Hermes Agent
 
 ```bash
-git clone https://github.com/<owner>/ansh-media-watch-skill.git ~/.hermes/skills/media/ansh-media-watch
+git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.hermes/skills/media/ansh-media-watch
 python3 ~/.hermes/skills/media/ansh-media-watch/scripts/setup.py --json
 ```
 
@@ -116,7 +116,7 @@ Then start a new Hermes session or run `/reload-skills` if available.
 Codex/generic agents do not need a special runtime if they can read files and run shell commands:
 
 ```bash
-git clone https://github.com/<owner>/ansh-media-watch-skill.git ~/.local/share/ai-skills/ansh-media-watch
+git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.local/share/ai-skills/ansh-media-watch
 cd ~/.local/share/ai-skills/ansh-media-watch
 python3 scripts/setup.py --json
 ```
@@ -131,7 +131,7 @@ Read SKILL.md in ~/.local/share/ai-skills/ansh-media-watch and use it to analyze
 
 ```bash
 mkdir -p ~/.local/share/ai-skills/ansh-media-watch
-curl -L https://github.com/<owner>/ansh-media-watch-skill/archive/refs/heads/main.tar.gz \
+curl -L https://github.com/ansh/ansh-media-watch-skill/archive/refs/heads/main.tar.gz \
   | tar -xz --strip-components=1 -C ~/.local/share/ai-skills/ansh-media-watch
 ```
 
@@ -161,9 +161,38 @@ python3 scripts/setup.py --check
 
 `--check` requires full URL-download + local-transcription capability. `--check-local` only requires local media frame/metadata capability.
 
+Use mode-specific checks before agent work:
+
+- Visual/local file analysis: `python3 scripts/setup.py --check-local`
+- Transcription or translation: `python3 scripts/setup.py --check-transcription`
+- URL download plus transcription: `python3 scripts/setup.py --check`
+
+## Spawner Team / multi-agent handoff
+
+When a coordinator spawns a worker agent to process media, avoid temp-dir ambiguity. The coordinator should create or choose a shared output directory and pass it to the worker:
+
+```bash
+OUT_DIR="$PWD/.media-watch-runs/$(date +%Y%m%d-%H%M%S)"
+python3 scripts/media_watch.py "<source>" --out-dir "$OUT_DIR" --keep --translate
+```
+
+The media worker should return absolute paths to:
+
+- `report.md`
+- `result.json`
+- `transcript.en.txt` or `transcript.txt`, if present
+- `frames/contact_sheet.jpg`, if present
+- `frames/manifest.md`, if present
+
+The coordinator or reviewer must read `result.json` and inspect the evidence files directly before trusting a spawned agent's summary. Do not delete the output directory until all follow-up questions and reviews are complete.
+
 ## Privacy and network behavior
 
 - URL sources are fetched locally with `yt-dlp`.
+- Private-network/localhost URLs are refused by default to reduce accidental SSRF in unattended agent runs. Use `--allow-private-urls` only for trusted local/internal media.
+- Input/download size is limited by default with `--max-media-mb 2048`; pass `--max-media-mb 0` only for trusted large media.
+- Media or requested range duration is limited by default with `--max-duration-sec 21600`; pass `--max-duration-sec 0` only for trusted long media.
+- These guards are safer defaults for user-owned agents, not a complete hosted-service sandbox. If you expose this to untrusted users, also use OS/container disk quotas and network egress controls because redirects/extractors and unknown-size downloads can still consume resources before post-download checks run.
 - Local files are copied into the output directory.
 - Frames/audio/transcripts are stored under the output directory.
 - The script does not upload media or audio to cloud transcription APIs.

@@ -66,10 +66,11 @@ Harnesses differ:
 - Some harnesses may expose `SKILL_DIR`.
 - Generic/Codex-style agents may expose neither; in that case, `cd` into the cloned skill directory or use an absolute path to `scripts/media_watch.py`.
 
-Safe portable pattern:
+Safe portable pattern when the harness provides a skill directory:
 
 ```bash
-SKILL_DIR="${CLAUDE_SKILL_DIR:-${SKILL_DIR:-/absolute/path/to/ansh-media-watch-skill}}"
+SKILL_DIR="${CLAUDE_SKILL_DIR:-${SKILL_DIR:-}}"
+test -n "$SKILL_DIR" || { echo "Set SKILL_DIR to the directory containing SKILL.md" >&2; exit 2; }
 python3 "$SKILL_DIR/scripts/setup.py" --check-local
 python3 "$SKILL_DIR/scripts/media_watch.py" "<video-or-audio-url-or-local-path>" --translate
 ```
@@ -77,9 +78,12 @@ python3 "$SKILL_DIR/scripts/media_watch.py" "<video-or-audio-url-or-local-path>"
 If your current working directory is the skill directory, this shorter form also works:
 
 ```bash
+SKILL_DIR="$PWD"
 python3 scripts/setup.py --check-local
 python3 scripts/media_watch.py "<source>" --translate
 ```
+
+When a coordinator spawns a subagent, pass the resolved `SKILL_DIR` and an explicit shared `--out-dir` in the subagent prompt. Do not make spawned agents guess or copy placeholder paths.
 
 ## Agent Workflow
 
@@ -89,6 +93,19 @@ Run a capability check before first use or after media processing fails:
 
 ```bash
 python3 "$SKILL_DIR/scripts/setup.py" --json
+```
+
+Use the mode-specific gate that matches the request:
+
+```bash
+# local visual/metadata work
+python3 "$SKILL_DIR/scripts/setup.py" --check-local
+
+# transcription or translation
+python3 "$SKILL_DIR/scripts/setup.py" --check-transcription
+
+# URL download plus transcription/translation
+python3 "$SKILL_DIR/scripts/setup.py" --check
 ```
 
 Capability meanings:
@@ -162,6 +179,10 @@ Useful flags:
 - `--translate`: translate transcript to English using whisper.cpp
 - `--model NAME`: whisper.cpp model (`base`, `small`, `medium`, `large-v3`); default `small`
 - `--out-dir DIR`: choose output directory; must be empty unless `--force` is passed
+- `--force`: allow fixed output filenames in a non-empty output directory; only use with a dedicated media-watch directory
+- `--max-media-mb N`: maximum local/downloaded media size in MB; default 2048, 0 disables for trusted media
+- `--max-duration-sec N`: maximum media or requested range duration in seconds; default 21600, 0 disables for trusted media
+- `--allow-private-urls`: allow localhost/private-network URLs only for trusted local/internal media
 - `--keep`: suppress cleanup reminder
 
 ### Step 3 — Inspect Outputs
@@ -188,6 +209,17 @@ Harness notes:
 - Claude Code: use `Read` on report/transcript/frame paths.
 - Hermes Agent: use `read_file` on text outputs and `vision_analyze` on contact sheet or frame paths.
 - Codex/generic CLI agents: use shell/file tools available in that harness; if no image capability exists, limit analysis to transcript/metadata.
+
+### Step 3A — Spawner Team / Subagent Handoff
+
+For multi-agent workflows, the coordinator should create a shared output directory and pass it to the media worker. The worker must keep artifacts until the coordinator says cleanup is complete.
+
+```bash
+OUT_DIR="<shared-workdir>/ansh-media-watch/<slug-or-timestamp>"
+python3 "$SKILL_DIR/scripts/media_watch.py" "<source>" --out-dir "$OUT_DIR" --keep --translate
+```
+
+The media worker's response must include absolute paths to `report.md`, `result.json`, the transcript file if present, `frames/contact_sheet.jpg` if present, and `frames/manifest.md` if present. The coordinator/reviewer must read `result.json` and inspect the evidence files directly before trusting a spawned agent summary.
 
 ### Step 4 — Answer Grounded in Evidence
 
@@ -236,6 +268,10 @@ Keep it if the user may ask more questions about the same media.
 This skill:
 
 - downloads URL sources directly with `yt-dlp`
+- refuses localhost/private-network URLs by default to reduce accidental SSRF in unattended agent runs; use `--allow-private-urls` only for trusted local/internal media
+- limits media size by default (`--max-media-mb 2048`) and allows trusted override with `--max-media-mb 0`
+- limits media/requested-range duration by default (`--max-duration-sec 21600`) and allows trusted override with `--max-duration-sec 0`
+- provides safer defaults for user-owned agents, but is not a complete hosted-service sandbox; public untrusted deployments still need OS/container disk quotas and network egress controls because redirects/extractors and unknown-size downloads can consume resources before post-download checks run
 - copies local files into an output directory
 - extracts frames and audio locally
 - transcribes locally with whisper.cpp by default
@@ -254,3 +290,4 @@ Warn before processing sensitive/private media and delete the output directory w
 - [ ] Specific claims cite timestamps
 - [ ] Visual uncertainty is stated when frames are sparse or no vision tool is available
 - [ ] Cleanup decision is explicit
+- [ ] For spawned-agent workflows, the worker returned artifact paths and the coordinator independently inspected `result.json`
