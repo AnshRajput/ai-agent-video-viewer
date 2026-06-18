@@ -272,6 +272,95 @@ python3 scripts/media_watch.py "video.mp4" --resolution 1024 --max-frames 40 --t
 - Use `--model medium` or `large-v3` for noisy or code-switched audio.
 - Use a focused `--start/--end` range for long videos and specific questions.
 
+## Example use cases
+
+These are the real workflows this skill is used for day to day — most start from a
+screen recording or a narrated clip and end in a concrete engineering action.
+
+**1. Turn a narrated screen recording into a feature spec.**
+Record yourself walking through a flow and describing what it should do, then:
+
+```text
+Watch this screen recording and listen to the narration, then write up the
+requirement so I can implement it: ~/Downloads/screen-recording.mp4
+```
+
+The skill extracts frames, transcribes the voice-over, and returns a timestamped
+summary of *what's on screen* plus *what was asked for*.
+
+**2. Localize a UI bug from frames + audio.**
+When a recording shows a glitch and the narration points at it:
+
+```text
+Analyze both the frames and the audio narration of this clip — there is a UI
+bug in the app's top bar. Tell me what's wrong and when it appears.
+```
+
+```bash
+python3 scripts/media_watch.py "bug-recording.mp4" --resolution 1024 --translate
+```
+
+Higher resolution makes on-screen text and status bars legible for precise diagnosis.
+
+**3. Convert a screen recording into an implementation prompt.**
+Hand a build walkthrough to the agent and let it draft the work:
+
+```text
+Watch this screen recording in the context of my app and draft an
+implementation prompt for the change being demonstrated.
+```
+
+**4. Analyze interaction/scroll behavior in depth.**
+For subtle UX issues (a list that hits a boundary, a loader that won't dismiss),
+focus on the relevant window:
+
+```bash
+python3 scripts/media_watch.py "scroll-issue.mp4" --start 00:10 --end 00:35 --resolution 1024 --max-frames 40
+```
+
+Then ask: *"Where does the scroll hit a boundary and behave unexpectedly?"*
+
+**5. QA pass on a build.**
+Point it at a capture and let it find problems:
+
+```text
+Watch this screen recording and identify any bug or unexpected behavior
+demonstrated, with timestamps.
+```
+
+**6. Transcribe or translate a voice note.**
+Audio-only inputs skip frames automatically:
+
+```bash
+python3 scripts/media_watch.py "voice-note.m4a" --audio-only --translate
+```
+
+In every case the answer is grounded in timestamped evidence — frames the agent
+actually inspected and transcript lines it can quote — not guesses.
+
+### More scenarios at a glance
+
+**Engineering & QA**
+- Triage a user-submitted screen recording of a bug into a reproducible report.
+- Convert a Loom/walkthrough into a step-by-step implementation checklist.
+- Verify a fix by comparing "before" and "after" recordings frame by frame.
+- Diagnose a UI/scroll/loading glitch by inspecting on-screen state at the exact timestamp it occurs.
+
+**Knowledge & content**
+- Summarize a long talk, webinar, lecture, or meeting recording into timestamped notes.
+- Pull key quotes and the moments they occur from a YouTube video for research or writing.
+- Extract on-screen text, slide content, or dashboard numbers from a demo video.
+- Document a tutorial into written steps an agent (or teammate) can follow.
+
+**Localization & accessibility**
+- Transcribe and translate non-English media (interviews, voice notes, field recordings) to English.
+- Generate a transcript or a described summary of media for accessibility.
+- Caption a clip with timestamped lines.
+
+**Agent workflows**
+- Give a coordinator agent grounded "eyes and ears": hand a video to a media worker that returns evidence the coordinator independently verifies.
+- Let a support or research agent answer "what happens at 01:20?" without a human re-watching the clip.
+
 ## Output artifacts
 
 Every run writes to a single output directory:
