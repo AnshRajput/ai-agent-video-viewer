@@ -85,6 +85,22 @@ python3 scripts/media_watch.py "<source>" --translate
 
 When a coordinator spawns a subagent, pass the resolved `SKILL_DIR` and an explicit shared `--out-dir` in the subagent prompt. Do not make spawned agents guess or copy placeholder paths.
 
+## MCP Server (harness-neutral tool)
+
+For MCP-capable harnesses (Claude Code, Cursor, Windsurf, Cline, Continue, OpenCode, Codex), a zero-dependency MCP server exposes this skill as auto-discoverable tools so no per-harness skill file is needed:
+
+```bash
+# Print ready-to-paste client config with absolute paths filled in
+python3 "$SKILL_DIR/scripts/mcp_server.py" --print-config
+```
+
+It exposes two tools:
+
+- `watch_media` — runs the same pipeline as `media_watch.py` and returns the Markdown report, artifact paths, and the contact sheet inline as an image content block (so even hosts without filesystem access get visual evidence).
+- `check_capabilities` — reports which local tools (ffmpeg/yt-dlp/whisper.cpp) are installed.
+
+The server is stdlib-only and runs `media_watch.py` as a subprocess, inheriting all of its safety limits (SSRF guard, size/duration caps, output sandboxing).
+
 ## Agent Workflow
 
 ### Step 0 — Capability Check
@@ -262,6 +278,7 @@ Keep it if the user may ask more questions about the same media.
 - No audio track: continue with visual-only analysis.
 - No video stream: treat as audio-only and provide transcript if possible.
 - Whisper missing: proceed visual-only for video, or ask the user to install whisper.cpp for transcription.
+- Partial media failure: if frame extraction or audio transcription fails mid-run, the script logs the error and still writes a report with whatever evidence succeeded, instead of aborting the whole run.
 - Long video: run a sparse pass only for high-level summary; otherwise request or infer a timestamp range.
 - Blurry/sparse frames: re-run with `--start/--end`, higher `--resolution`, or fewer frames over a narrower section.
 

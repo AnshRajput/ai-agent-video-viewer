@@ -69,6 +69,24 @@ class InstallPlannerTests(unittest.TestCase):
             self.assertIn(home / ".claude" / "skills" / "ai-agent-video-viewer", destinations)
             self.assertIn(home / "claude-plugins" / "ai-agent-video-viewer", destinations)
 
+    def test_target_install_copies_portable_skill_to_arbitrary_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            (root / "scripts").mkdir(parents=True)
+            (root / "SKILL.md").write_text("name: ai-agent-video-viewer\n")
+            (root / "scripts" / "media_watch.py").write_text("print('ok')\n")
+            (root / "scripts" / "setup.py").write_text("print('ok')\n")
+
+            target = Path(td) / "any-harness" / "skills" / "ai-agent-video-viewer"
+            returned = installer.install_skill_files(root, target, force=False, dry_run=False, label="test")
+            self.assertEqual(returned, target)
+            self.assertTrue((target / "SKILL.md").exists())
+            self.assertTrue((target / "scripts" / "media_watch.py").exists())
+            # dry-run must not write
+            target2 = Path(td) / "dry" / "ai-agent-video-viewer"
+            installer.install_skill_files(root, target2, force=False, dry_run=True, label="test")
+            self.assertFalse(target2.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

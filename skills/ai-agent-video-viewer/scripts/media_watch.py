@@ -157,11 +157,11 @@ def fmt_time(seconds: float | None, *, precise: bool = False) -> str:
         return "unknown"
     seconds = max(0.0, float(seconds))
     if precise:
-        whole = int(seconds)
-        frac = seconds - whole
-        h, rem = divmod(whole, 3600)
-        m, s = divmod(rem, 60)
-        suffix = f".{int(round(frac * 100)):02d}" if frac else ""
+        centis = int(round(seconds * 100))
+        h, rem = divmod(centis, 360000)
+        m, rem = divmod(rem, 6000)
+        s, frac = divmod(rem, 100)
+        suffix = f".{frac:02d}" if frac else ""
         return f"{h:02d}:{m:02d}:{s:02d}{suffix}" if h else f"{m:02d}:{s:02d}{suffix}"
     whole = int(round(seconds))
     h, rem = divmod(whole, 3600)
@@ -398,8 +398,12 @@ def transcribe(media: Path, work: Path, start: float | None, end: float | None, 
     if not cli:
         log("whisper.cpp not found; skipping transcript")
         return [], None, "unavailable"
-    wav = extract_audio(media, work / "audio.wav", start, end)
-    model_path = ensure_model(model)
+    try:
+        wav = extract_audio(media, work / "audio.wav", start, end)
+        model_path = ensure_model(model)
+    except (SystemExit, Exception) as exc:  # degrade to visual-only instead of aborting the whole run
+        log(f"transcription setup failed; continuing without transcript: {exc}")
+        return [], None, "failed"
     out_base = work / "transcript_whisper"
     cmd = [cli, "-m", str(model_path), "-f", str(wav), "-l", language or "auto", "-oj", "-of", str(out_base), "-np"]
     if translate:
@@ -422,7 +426,7 @@ def md_inline(value: Any) -> str:
     return "`" + str(value).replace("`", "\\`").replace("\n", "\\n") + "`"
 
 
-def write_outputs(work: Path, args: argparse.Namespace, media: Path, info: dict[str, Any], frames: list[dict[str, Any]], segments: list[dict[str, Any]], transcript_source: str | None, transcript_state: str, frame_manifest: str | None, contact_sheet: str | None) -> None:
+def write_outputs(work: Path, args: argparse.Namespace, media: Path, info: dict[str, Any], frames: list[dict[str, Any]], segments: list[dict[str, Any]], transcript_source: str | None, transcript_state: str, frame_manifest: str | None, contact_sheet: str | None, source_kind: str | None = None) -> None:
     transcript_path = work / ("transcript.en.txt" if args.translate else "transcript.txt")
     if segments:
         transcript_path.write_text("\n".join(f"[{seg['time']}] {seg['text']}" for seg in segments) + "\n", encoding="utf-8")
@@ -476,6 +480,7 @@ def write_outputs(work: Path, args: argparse.Namespace, media: Path, info: dict[
 
     result = {
         "source": args.source,
+        "source_kind": source_kind,
         "media_path": str(media),
         "output_dir": str(work),
         "report_path": str(work / "report.md"),
@@ -526,15 +531,20 @@ def main() -> int:
 
     work = prepare_output_dir(args.out_dir, force=args.force)
 
-    media, _extra = download_or_copy(args.source, work, max_media_mb=args.max_media_mb, allow_private_urls=args.allow_private_urls)
+    media, source_meta = download_or_copy(args.source, work, max_media_mb=args.max_media_mb, allow_private_urls=args.allow_private_urls)
     info = probe(media)
     enforce_duration(info, args.max_duration_sec, args.start, args.end)
     frames: list[dict[str, Any]] = []
     frame_manifest = None
     contact_sheet = None
     if info.get("has_video") and not args.audio_only:
-        frames = extract_frames(media, work / "frames", info.get("duration"), args.start, args.end, args.max_frames, args.resolution, args.fps)
-        frame_manifest, contact_sheet = write_frame_manifest(work, frames)
+        try:
+            frames = extract_frames(media, work / "frames", info.get("duration"), args.start, args.end, args.max_frames, args.resolution, args.fps)
+            frame_manifest, contact_sheet = write_frame_manifest(work, frames)
+        except (SystemExit, Exception) as exc:  # degrade to transcript-only instead of aborting the whole run
+            log(f"frame extraction failed; continuing without frames: {exc}")
+            frames = []
+            frame_manifest = contact_sheet = None
 
     segments: list[dict[str, Any]] = []
     transcript_source = None
@@ -542,7 +552,7 @@ def main() -> int:
     if info.get("has_audio"):
         segments, transcript_source, transcript_state = transcribe(media, work, args.start, args.end, args.model, args.language, args.translate)
 
-    write_outputs(work, args, media, info, frames, segments, transcript_source, transcript_state, frame_manifest, contact_sheet)
+    write_outputs(work, args, media, info, frames, segments, transcript_source, transcript_state, frame_manifest, contact_sheet, source_kind=source_meta.get("source_kind"))
     return 0
 
 

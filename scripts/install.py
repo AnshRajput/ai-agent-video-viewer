@@ -230,27 +230,45 @@ def copy_tree(src: Path, dst: Path, *, force: bool = False, dry_run: bool = Fals
         print(f"DRY-RUN: copy {src} -> {dst}")
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
-    ignore = shutil.ignore_patterns(".git", "__pycache__", "*.pyc", ".DS_Store", ".ai-agent-video-viewer-runs")
+    ignore = shutil.ignore_patterns(".git", "__pycache__", "*.pyc", ".DS_Store", ".ai-agent-video-viewer-runs", "outputs", ".env", ".venv")
     if src.is_file():
         shutil.copy2(src, dst)
     else:
         shutil.copytree(src, dst, ignore=ignore)
 
 
-def install_standalone_skill(repo_root: Path, home: Path, *, force: bool, dry_run: bool) -> Path:
-    dst = home / ".claude" / "skills" / SKILL_NAME
+def install_skill_files(repo_root: Path, dst: Path, *, force: bool, dry_run: bool, label: str = "portable skill") -> Path:
+    """Copy SKILL.md + scripts/ into an arbitrary harness skill directory.
+
+    This is the harness-neutral primitive: any agent runtime that loads a
+    Markdown skill plus scripts (Claude Code, Hermes, OpenCode, a generic skills
+    folder) can be targeted by pointing this at its skill directory.
+    """
     if dry_run:
-        print(f"DRY-RUN: install Claude Code standalone skill to {dst}")
-    if dst.exists() and force and not dry_run:
-        shutil.rmtree(dst)
-    elif dst.exists() and not force:
-        fail(f"Claude Code skill already exists: {dst}. Rerun with --force to replace it.")
-    if not dry_run:
-        dst.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(repo_root / "SKILL.md", dst / "SKILL.md")
-        copy_tree(repo_root / "scripts", dst / "scripts", force=True, dry_run=False)
-        make_scripts_executable(dst / "scripts")
+        print(f"DRY-RUN: install {label} to {dst}")
+        return dst
+    if dst.exists():
+        if not force:
+            fail(f"Skill directory already exists: {dst}. Rerun with --force to replace it.")
+        if dst.is_symlink() or dst.is_file():
+            dst.unlink()
+        else:
+            shutil.rmtree(dst)
+    dst.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(repo_root / "SKILL.md", dst / "SKILL.md")
+    copy_tree(repo_root / "scripts", dst / "scripts", force=True, dry_run=False)
+    make_scripts_executable(dst / "scripts")
     return dst
+
+
+def install_standalone_skill(repo_root: Path, home: Path, *, force: bool, dry_run: bool) -> Path:
+    return install_skill_files(
+        repo_root,
+        home / ".claude" / "skills" / SKILL_NAME,
+        force=force,
+        dry_run=dry_run,
+        label="Claude Code standalone skill",
+    )
 
 
 def install_plugin_layout(repo_root: Path, home: Path, *, force: bool, dry_run: bool) -> Path:
@@ -306,7 +324,21 @@ def remove_legacy_skills(home: Path, *, dry_run: bool = False) -> None:
 
 def run_setup_check(repo_root: Path, *, dry_run: bool = False) -> None:
     cmd = [sys.executable, str(repo_root / "scripts" / "setup.py"), "--check"]
-    run(cmd, dry_run=dry_run)
+    printable = " ".join(shlex_quote(part) for part in cmd)
+    if dry_run:
+        print(f"DRY-RUN: {printable}")
+        return
+    print(f"RUN: {printable}")
+    # Informational only: a non-full capability set must not crash the installer
+    # with a traceback. The skill still works for whatever capabilities exist.
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        print(
+            "\nNote: not every capability is available yet (full = URL download + "
+            "local transcription). The skill still works for whatever is installed. "
+            "Install the missing tools, then re-check with: "
+            "python3 scripts/setup.py --json"
+        )
 
 
 def print_post_install(installed: list[Path], *, home: Path) -> None:
@@ -321,6 +353,14 @@ def print_post_install(installed: list[Path], *, home: Path) -> None:
     print(f"3. If your Claude Code supports skill slash commands, try: /{SKILL_NAME} <url-or-path> [question]")
     print("\nPlugin-dir usage for local testing:")
     print(f"claude --plugin-dir {home / 'claude-plugins' / SKILL_NAME}")
+    print("\nOther harnesses (Cursor, Hermes, OpenCode, Codex, generic shell agents):")
+    print("- The core is a portable CLI + Markdown skill. Point the agent at the installed")
+    print("  SKILL.md and let it run scripts/media_watch.py, or install into that harness's")
+    print("  skill directory directly: scripts/install.py --skip-deps --target <dir>")
+    print("\nMCP-only harnesses (Cursor, Windsurf, Cline, Continue, Codex, OpenCode):")
+    print("- Register the bundled MCP server for auto-discovery as a `watch_media` tool.")
+    print("  Print ready-to-paste config (with absolute paths) via:")
+    print("  python3 scripts/mcp_server.py --print-config")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -332,6 +372,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap.add_argument("--install-homebrew", action="store_true", help="macOS only: allow this script to run Homebrew's official installer if brew is missing")
     ap.add_argument("--skip-claude-skill", action="store_true", help="do not install ~/.claude/skills/ai-agent-video-viewer")
     ap.add_argument("--skip-claude-plugin", action="store_true", help="do not install ~/claude-plugins/ai-agent-video-viewer")
+    ap.add_argument("--target", action="append", default=[], type=Path, metavar="DIR", help="also install the portable SKILL.md + scripts into an arbitrary harness skill directory (repeatable), e.g. --target ~/.hermes/skills/ai-agent-video-viewer")
     ap.add_argument("--remove-legacy", action="store_true", help="remove legacy ~/.claude/skills/ansh-media-watch if present")
     ap.add_argument("--no-check", action="store_true", help="skip final setup.py --check")
     ap.add_argument("--home", type=Path, default=Path.home(), help="home directory for Claude installs; useful for tests")
@@ -350,6 +391,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_deps:
         plan.extend(build_dependency_plan(install_homebrew=args.install_homebrew))
     plan.extend(build_claude_install_plan(repo_root, home, install_skill=install_skill, install_plugin=install_plugin, force=args.force))
+    targets = [t.expanduser().resolve() for t in args.target]
+    for target in targets:
+        plan.append(InstallStep("Install portable skill into harness directory", destination=target))
 
     if args.json:
         print(json.dumps([step.as_dict() for step in plan], indent=2))
@@ -378,6 +422,8 @@ def main(argv: list[str] | None = None) -> int:
                 run(step.command, dry_run=args.dry_run)
 
     installed = install_claude_targets(repo_root, home, install_skill=install_skill, install_plugin=install_plugin, force=args.force, dry_run=args.dry_run)
+    for target in targets:
+        installed.append(install_skill_files(repo_root, target, force=args.force, dry_run=args.dry_run, label=f"portable skill into {target}"))
 
     if not args.no_check:
         run_setup_check(repo_root, dry_run=args.dry_run)

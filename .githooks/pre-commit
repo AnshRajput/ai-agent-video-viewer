@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Keep the plugin mirror (skills/ai-agent-video-viewer/) byte-identical with the
+# root source of truth, so a commit can never introduce drift.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+python3 "$ROOT/scripts/sync_mirror.py"
+
+# Stage anything the sync just updated so the commit includes a synced mirror.
+if ! git diff --quiet -- "$ROOT/skills/ai-agent-video-viewer"; then
+  git add "$ROOT/skills/ai-agent-video-viewer"
+  echo "pre-commit: re-synced and staged the plugin mirror"
+fi

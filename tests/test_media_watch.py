@@ -85,5 +85,37 @@ class WhisperJsonTests(unittest.TestCase):
             self.assertEqual(segments[0]["time"], "01:21")
 
 
+class PreciseTimeCarryTests(unittest.TestCase):
+    def test_centisecond_boundary_carries(self):
+        # frac rounding must not produce ".100"; it must carry into seconds.
+        self.assertEqual(media_watch.fmt_time(2.999, precise=True), "00:03")
+        self.assertEqual(media_watch.fmt_time(3599.999, precise=True), "01:00:00")
+        self.assertEqual(media_watch.fmt_time(0.995, precise=True), "00:01")
+        self.assertEqual(media_watch.fmt_time(62.5, precise=True), "01:02.50")
+
+
+class TranscriptionDegradationTests(unittest.TestCase):
+    def test_setup_failure_degrades_instead_of_aborting(self):
+        # whisper is present, but audio extraction fails: the run must not abort,
+        # so any already-extracted frames still get reported.
+        orig_find, orig_extract = media_watch.find_whisper, media_watch.extract_audio
+        try:
+            media_watch.find_whisper = lambda: "/fake/whisper-cli"
+
+            def boom(*args, **kwargs):
+                raise SystemExit("ffmpeg produced no audio file")
+
+            media_watch.extract_audio = boom
+            with tempfile.TemporaryDirectory() as td:
+                segments, source, state = media_watch.transcribe(
+                    Path(td) / "m.mp4", Path(td), None, None, "small", "auto", True
+                )
+            self.assertEqual(segments, [])
+            self.assertIsNone(source)
+            self.assertEqual(state, "failed")
+        finally:
+            media_watch.find_whisper, media_watch.extract_audio = orig_find, orig_extract
+
+
 if __name__ == "__main__":
     unittest.main()
