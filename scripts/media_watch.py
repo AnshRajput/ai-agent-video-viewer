@@ -36,7 +36,7 @@ DEFAULT_MAX_DURATION_SEC = 6 * 60 * 60
 
 
 def log(msg: str) -> None:
-    print(f"[ansh-media-watch] {msg}", file=sys.stderr)
+    print(f"[ai-agent-video-viewer] {msg}", file=sys.stderr)
 
 
 def run(cmd: list[str], *, check: bool = True, timeout: int | None = None) -> subprocess.CompletedProcess[str]:
@@ -111,7 +111,7 @@ def ensure_inside(path: Path, parent: Path, label: str) -> Path:
 
 
 def prepare_output_dir(out_dir: str | None, *, force: bool) -> Path:
-    work = Path(out_dir).expanduser().resolve() if out_dir else Path(tempfile.mkdtemp(prefix="ansh-media-watch-"))
+    work = Path(out_dir).expanduser().resolve() if out_dir else Path(tempfile.mkdtemp(prefix="ai-agent-video-viewer-"))
     dangerous = {Path("/").resolve(), Path.home().resolve(), Path.cwd().resolve()}
     if work in dangerous:
         raise SystemExit(f"Refusing unsafe output directory: {work}. Choose a dedicated empty subdirectory.")
@@ -428,7 +428,7 @@ def write_outputs(work: Path, args: argparse.Namespace, media: Path, info: dict[
         transcript_path.write_text("\n".join(f"[{seg['time']}] {seg['text']}" for seg in segments) + "\n", encoding="utf-8")
 
     report: list[str] = []
-    report.append("# Ansh Media Watch Report")
+    report.append("# AI Agent Video Viewer Report")
     report.append("")
     report.append(f"- Source: {md_inline(args.source)}")
     report.append(f"- Local media: {md_inline(media)}")

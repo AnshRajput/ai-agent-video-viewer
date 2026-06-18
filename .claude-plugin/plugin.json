@@ -1,11 +1,11 @@
 {
-  "name": "ansh-media-watch",
+  "name": "ai-agent-video-viewer",
   "version": "1.0.0",
   "description": "Watch video/audio, extract frames, transcribe or translate speech to English, and help agents answer questions about media with timestamped evidence.",
   "author": {
     "name": "Ansh"
   },
-  "repository": "https://github.com/ansh/ansh-media-watch-skill",
+  "repository": "https://github.com/ansh/ai-agent-video-viewer",
   "license": "MIT",
   "keywords": ["video", "audio", "transcription", "translation", "whisper", "ffmpeg", "yt-dlp", "agent-skill"]
 }

@@ -1,4 +1,4 @@
-# Ansh Media Watch Skill
+# AI Agent Video Viewer
 
 A portable AI-agent skill for watching videos, listening to audio, extracting frames, and transcribing/translating speech to English.
 
@@ -62,13 +62,13 @@ First transcription may download a whisper.cpp model from Hugging Face into `~/.
 
 ## Install from GitHub
 
-Canonical repository URL: `https://github.com/ansh/ansh-media-watch-skill`.
+Canonical repository URL: `https://github.com/ansh/ai-agent-video-viewer`.
 
 ### Claude Code: standalone skill
 
 ```bash
-git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.claude/skills/ansh-media-watch
-python3 ~/.claude/skills/ansh-media-watch/scripts/setup.py --json
+git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.claude/skills/ai-agent-video-viewer
+python3 ~/.claude/skills/ai-agent-video-viewer/scripts/setup.py --json
 ```
 
 Start a new Claude Code session after installing, then ask naturally:
@@ -82,7 +82,7 @@ What is visible around 01:20 in this video? <url>
 If your Claude Code version supports user-invocable skills, you can also try:
 
 ```text
-/ansh-media-watch <video-or-audio-url-or-path> [question]
+/ai-agent-video-viewer <video-or-audio-url-or-path> [question]
 ```
 
 ### Claude Code: plugin-style layout
@@ -91,22 +91,22 @@ This repo also includes a Claude plugin-style layout:
 
 ```text
 .claude-plugin/plugin.json
-skills/ansh-media-watch/SKILL.md
-skills/ansh-media-watch/scripts/
+skills/ai-agent-video-viewer/SKILL.md
+skills/ai-agent-video-viewer/scripts/
 ```
 
 For local plugin development/testing, clone the repo and point Claude Code at the plugin directory if your Claude Code version supports `--plugin-dir`:
 
 ```bash
-git clone https://github.com/ansh/ansh-media-watch-skill.git ~/claude-plugins/ansh-media-watch
-claude --plugin-dir ~/claude-plugins/ansh-media-watch
+git clone https://github.com/ansh/ai-agent-video-viewer.git ~/claude-plugins/ai-agent-video-viewer
+claude --plugin-dir ~/claude-plugins/ai-agent-video-viewer
 ```
 
 ### Hermes Agent
 
 ```bash
-git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.hermes/skills/media/ansh-media-watch
-python3 ~/.hermes/skills/media/ansh-media-watch/scripts/setup.py --json
+git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.hermes/skills/media/ai-agent-video-viewer
+python3 ~/.hermes/skills/media/ai-agent-video-viewer/scripts/setup.py --json
 ```
 
 Then start a new Hermes session or run `/reload-skills` if available.
@@ -116,23 +116,23 @@ Then start a new Hermes session or run `/reload-skills` if available.
 Codex/generic agents do not need a special runtime if they can read files and run shell commands:
 
 ```bash
-git clone https://github.com/ansh/ansh-media-watch-skill.git ~/.local/share/ai-skills/ansh-media-watch
-cd ~/.local/share/ai-skills/ansh-media-watch
+git clone https://github.com/ansh/ai-agent-video-viewer.git ~/.local/share/ai-skills/ai-agent-video-viewer
+cd ~/.local/share/ai-skills/ai-agent-video-viewer
 python3 scripts/setup.py --json
 ```
 
 Then tell the agent:
 
 ```text
-Read SKILL.md in ~/.local/share/ai-skills/ansh-media-watch and use it to analyze <video-or-audio-source>.
+Read SKILL.md in ~/.local/share/ai-skills/ai-agent-video-viewer and use it to analyze <video-or-audio-source>.
 ```
 
 ### Install from GitHub archive
 
 ```bash
-mkdir -p ~/.local/share/ai-skills/ansh-media-watch
-curl -L https://github.com/ansh/ansh-media-watch-skill/archive/refs/heads/main.tar.gz \
-  | tar -xz --strip-components=1 -C ~/.local/share/ai-skills/ansh-media-watch
+mkdir -p ~/.local/share/ai-skills/ai-agent-video-viewer
+curl -L https://github.com/ansh/ai-agent-video-viewer/archive/refs/heads/main.tar.gz \
+  | tar -xz --strip-components=1 -C ~/.local/share/ai-skills/ai-agent-video-viewer
 ```
 
 ## Direct script usage
@@ -172,7 +172,7 @@ Use mode-specific checks before agent work:
 When a coordinator spawns a worker agent to process media, avoid temp-dir ambiguity. The coordinator should create or choose a shared output directory and pass it to the worker:
 
 ```bash
-OUT_DIR="$PWD/.media-watch-runs/$(date +%Y%m%d-%H%M%S)"
+OUT_DIR="$PWD/.ai-agent-video-viewer-runs/$(date +%Y%m%d-%H%M%S)"
 python3 scripts/media_watch.py "<source>" --out-dir "$OUT_DIR" --keep --translate
 ```
 
@@ -230,8 +230,8 @@ python3 scripts/media_watch.py "$tmp/sample.mp4" --max-frames 2 --out-dir "$tmp/
 SKILL.md                         # standalone/generic skill entrypoint
 scripts/                         # source scripts
 .claude-plugin/plugin.json       # Claude Code plugin metadata
-skills/ansh-media-watch/         # plugin-compatible mirrored skill directory
+skills/ai-agent-video-viewer/         # plugin-compatible mirrored skill directory
 tests/                           # unit tests
 ```
 
-The root `SKILL.md` + `scripts/` are the source of truth. The plugin-compatible `skills/ansh-media-watch/` directory is mirrored from the root for Claude plugin-style installs.
+The root `SKILL.md` + `scripts/` are the source of truth. The plugin-compatible `skills/ai-agent-video-viewer/` directory is mirrored from the root for Claude plugin-style installs.

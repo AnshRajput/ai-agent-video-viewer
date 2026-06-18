@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency/capability checker for ansh-media-watch."""
+"""Dependency/capability checker for ai-agent-video-viewer."""
 from __future__ import annotations
 
 import argparse
@@ -67,7 +67,7 @@ def status() -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Check dependencies for ansh-media-watch")
+    ap = argparse.ArgumentParser(description="Check dependencies for ai-agent-video-viewer")
     ap.add_argument("--check", action="store_true", help="exit non-zero unless full URL+transcription capability is available")
     ap.add_argument("--check-local", action="store_true", help="exit non-zero unless local media frame/metadata capability is available")
     ap.add_argument("--check-transcription", action="store_true", help="exit non-zero unless local transcription capability is available")
@@ -78,7 +78,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(data, indent=2))
     else:
-        print("ansh-media-watch capability status")
+        print("ai-agent-video-viewer capability status")
         for key, value in data["capabilities"].items():
             print(f"- {key}: {'yes' if value else 'no'}")
         if not data["capabilities"]["full"]:

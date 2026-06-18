@@ -1,11 +1,11 @@
 ---
-name: ansh-media-watch
+name: ai-agent-video-viewer
 description: This skill should be used when the user asks to watch a video, summarize what happens in a video, describe what is visible, listen to audio, transcribe audio/video, translate speech to English, or answer questions about a video/audio URL or local media path. It extracts frames, transcribes or translates speech to English, and grounds answers in timestamps.
 version: 1.0.0
 author: Ansh
 license: MIT
-homepage: https://github.com/ansh/ansh-media-watch-skill
-repository: https://github.com/ansh/ansh-media-watch-skill
+homepage: https://github.com/ansh/ai-agent-video-viewer
+repository: https://github.com/ansh/ai-agent-video-viewer
 allowed-tools: Bash, Read
 user-invocable: true
 argument-hint: "<video-or-audio-url-or-path> [question]"
@@ -17,7 +17,7 @@ metadata:
     harnesses: [Claude Code, Hermes Agent, Codex, generic shell-capable agents]
 ---
 
-# Ansh Media Watch
+# AI Agent Video Viewer
 
 ## Overview
 
@@ -179,7 +179,7 @@ Useful flags:
 - `--translate`: translate transcript to English using whisper.cpp
 - `--model NAME`: whisper.cpp model (`base`, `small`, `medium`, `large-v3`); default `small`
 - `--out-dir DIR`: choose output directory; must be empty unless `--force` is passed
-- `--force`: allow fixed output filenames in a non-empty output directory; only use with a dedicated media-watch directory
+- `--force`: allow fixed output filenames in a non-empty output directory; only use with a dedicated ai-agent-video-viewer directory
 - `--max-media-mb N`: maximum local/downloaded media size in MB; default 2048, 0 disables for trusted media
 - `--max-duration-sec N`: maximum media or requested range duration in seconds; default 21600, 0 disables for trusted media
 - `--allow-private-urls`: allow localhost/private-network URLs only for trusted local/internal media
@@ -215,7 +215,7 @@ Harness notes:
 For multi-agent workflows, the coordinator should create a shared output directory and pass it to the media worker. The worker must keep artifacts until the coordinator says cleanup is complete.
 
 ```bash
-OUT_DIR="<shared-workdir>/ansh-media-watch/<slug-or-timestamp>"
+OUT_DIR="<shared-workdir>/ai-agent-video-viewer/<slug-or-timestamp>"
 python3 "$SKILL_DIR/scripts/media_watch.py" "<source>" --out-dir "$OUT_DIR" --keep --translate
 ```
 
